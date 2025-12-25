@@ -14,22 +14,20 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // @ts-ignore
-    let pdf = require("pdf-parse");
-    let PDFParseClass = pdf;
+    // Use pdf2json which is Node.js safe
+    const PDFParser = require("pdf2json");
+    const parser = new PDFParser(null, 1); // 1 = text only
 
-    // Handle package export structure
-    if (pdf.PDFParse) {
-        PDFParseClass = pdf.PDFParse;
-    } else if (pdf.default) {
-        PDFParseClass = pdf.default;
-    }
-    
-    // Instantiate the parser class
-    const parser = new PDFParseClass({ data: buffer });
-    // Extract text
-    const data = await parser.getText();
-    const text = data.text;
+    const text = await new Promise<string>((resolve, reject) => {
+        parser.on("pdfParser_dataError", (errData: any) => reject(new Error(errData.parserError)));
+        parser.on("pdfParser_dataReady", (pdfData: any) => {
+            // Extract text from the raw data
+            const rawText = parser.getRawTextContent();
+            resolve(rawText);
+        });
+        
+        parser.parseBuffer(buffer);
+    });
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json({ error: "Could not extract text from PDF" }, { status: 400 });
@@ -39,10 +37,10 @@ export async function POST(req: NextRequest) {
     const questions = await generateMCQs(text);
 
     return NextResponse.json({ questions });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Upload error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
