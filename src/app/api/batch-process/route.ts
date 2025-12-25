@@ -25,31 +25,25 @@ export async function POST(req: NextRequest) {
 
     const results = [];
 
-    // Since we can't use `pdf-parse` easily in same file without the require hack, 
-    // we might need to duplicate the logic or export extraction logic.
-    // However, `api/upload/route.ts` has the logic.
-    // Let's copy the PDF parsing logic here for robustness.
-    
-    // We need to dinamically require pdf-parse
-    // @ts-ignore
-    const pdf = require('pdf-parse');
+    // Use pdf2json which is Node.js safe
+    const PDFParser = require("pdf2json");
 
     for (const file of files) {
       const filePath = path.join(pdfDir, file);
       const fileBuffer = fs.readFileSync(filePath);
 
       try {
-        // Instantiate the parser correctly (copied from upload/route.ts)
-        let PDFParseClass = pdf;
-        if (pdf.PDFParse) {
-            PDFParseClass = pdf.PDFParse;
-        } else if (pdf.default) {
-            PDFParseClass = pdf.default;
-        }
+        const parser = new PDFParser(null, 1); // 1 = text only
 
-        const parser = new PDFParseClass({ data: fileBuffer });
-        const data = await parser.getText();
-        const text = data.text;
+        const text = await new Promise<string>((resolve, reject) => {
+            parser.on("pdfParser_dataError", (errData: any) => reject(new Error(errData.parserError)));
+            parser.on("pdfParser_dataReady", (pdfData: any) => {
+                const rawText = parser.getRawTextContent();
+                resolve(rawText);
+            });
+            parser.parseBuffer(fileBuffer);
+        });
+
         const questions = await generateMCQs(text); // Uses local generator fallback automatically
 
         results.push({

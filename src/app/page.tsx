@@ -128,46 +128,72 @@ export default function Home() {
     setMode('SELECTION');
   };
 
-  const handleBatchSync = async (specificFiles?: string[]) => {
-    if (specificFiles) setLoadingFiles(specificFiles);
+   const handleBatchSync = async (specificFiles?: string[]) => {
+    // If specific files provided, use them. Otherwise, we might have been called manually (check missing again??)
+    // For manual sync button (no args), we need to refetch the list.
+    let filesToSync = specificFiles || [];
     
-    try {
-       const res = await fetch('/api/batch-process', { 
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ files: specificFiles || [] })
-       });
-       const data = await res.json();
-       
-       if (data.sessions) {
-         const newSessions: Session[] = data.sessions.map((s: any) => ({
-           id: crypto.randomUUID(),
-           name: s.name,
-           fileName: s.name, // Important for tracking
-           date: new Date().toLocaleDateString(),
-           questions: s.questions
-         }));
-         
-         setSessions(prev => {
-             const existingNames = new Set(prev.map(s => s.name));
-             const uniqueNew = newSessions.filter(s => !existingNames.has(s.name));
-             
-             // If manual sync and no new files
-             if (uniqueNew.length === 0 && !specificFiles && loadingFiles.length === 0) {
+    if (!specificFiles) {
+        // Manual trigger: calculate missing files again
+        try {
+            const listRes = await fetch('/api/pdfs');
+            const listData = await listRes.json();
+            const serverFiles: string[] = listData.files || [];
+            const localNames = new Set(sessions.map(s => s.fileName || s.name)); // Clean check
+            filesToSync = serverFiles.filter(f => !localNames.has(f));
+            
+            if (filesToSync.length === 0) {
                  alert("All PDFs are already synced!");
-                 return prev;
-             }
+                 return;
+            }
+        } catch (e) {
+            console.error("Failed to list files for sync", e);
+            alert("Failed to connect to server");
+            return;
+        }
+    }
+
+    setLoadingFiles(filesToSync);
     
-             const updated = [...uniqueNew, ...prev];
-             localStorage.setItem('quiz_sessions', JSON.stringify(updated));
-             return updated;
-         });
-       }
-    } catch (e) {
-      console.error("Batch sync failed", e);
-      if (!specificFiles) alert("Failed to sync PDFs");
-    } finally {
-        setLoadingFiles([]); // Clear loading state
+    // PROCESS SEQUENTIALLY to avoid Vercel Timeouts (10s limit)
+    // We send one request per file.
+    for (const file of filesToSync) {
+        try {
+            const res = await fetch('/api/batch-process', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: [file] }) // Send just ONE
+            });
+            
+            if (!res.ok) throw new Error(`Failed to sync ${file}`);
+            
+            const data = await res.json();
+            
+            if (data.sessions && data.sessions.length > 0) {
+                 const newSessionData = data.sessions[0];
+                 const newSession: Session = {
+                    id: crypto.randomUUID(),
+                    name: newSessionData.name,
+                    fileName: newSessionData.name,
+                    date: new Date().toLocaleDateString(),
+                    questions: newSessionData.questions
+                 };
+
+                 setSessions(prev => {
+                     // Dedup again to be safe
+                     if (prev.some(s => s.fileName === newSession.fileName)) return prev;
+                     const updated = [newSession, ...prev];
+                     localStorage.setItem('quiz_sessions', JSON.stringify(updated));
+                     return updated;
+                 });
+            }
+        } catch (e) {
+            console.error(`Error syncing ${file}:`, e);
+            // Don't abort whole process, just log
+        } finally {
+            // Remove this specific file from loading state
+            setLoadingFiles(prev => prev.filter(f => f !== file));
+        }
     }
   };
 
