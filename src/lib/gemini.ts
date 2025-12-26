@@ -100,8 +100,8 @@ function extractExistingQuestions(text: string): Question[] {
           
           while (i + peekIndex < lines.length && peekIndex < 4) {
              const nextLine = lines[i + peekIndex].trim();
-             // Robust option check: a) a. A) A. (a)
-             if (nextLine.match(/^(?:[a-d]|[A-D])[\.\)]/)) {
+             // Robust option check: a) a. A) A. (a) 1. 1)
+             if (nextLine.match(/^(?:[a-e]|[A-E]|[1-5])[\.\)]/)) {
                  isCandidateQuestion = true;
                  break;
              }
@@ -197,29 +197,37 @@ function parseBlockForQuestions(text: string, topic: string): Question[] {
      state = 'READING_TEXT';
   };
 
-  const optionRegex = /^(?:[a-d]|[A-D])[\)\.]\s+(.+)/i;
-  // Matches "Answer: b", "Ans: b", "Correct Answer: B", "Answer: b) Text"
-  // Group 1: Option ID (a-d), Group 2: Option Text (optional)
-  const answerFullRegex = /^(?:Answer|Ans|Correct\s+Answer|Correct\s+Option|Correct):\s*([a-d]?)(?:[\)\.]\s*)?(.*)/i; 
+  const optionRegex = /^(?:[a-e]|[A-E]|[1-5])[\)\.]\s+(.+)/i;
+  // Matches "Answer: b", "Answer: 2", "Ans: b", "Correct Answer: B"
+  const answerFullRegex = /^(?:Answer|Ans|Correct\s+Answer|Correct\s+Option|Correct):\s*([a-e1-5]?)(?:[\)\.]\s*)?(.*)/i; 
 
   for (let i = 0; i < lines.length; i++) {
       let line = lines[i].trim();
       if (!line) continue;
 
+      // Skip page markers
+      if (line.includes("---Page") && line.includes("Break---")) continue;
+
       const answerMatch = line.match(answerFullRegex);
       if (answerMatch) {
-          const ansId = answerMatch[1] ? answerMatch[1].toLowerCase() : '';
+          const ansIdRaw = answerMatch[1] ? answerMatch[1].toLowerCase() : '';
           let ansText = answerMatch[2] ? answerMatch[2].trim() : '';
 
-          if (ansId) {
-             const idx = ansId.charCodeAt(0) - 97; // a=0
+          if (ansIdRaw) {
+             let idx = -1;
+             if (/[1-5]/.test(ansIdRaw)) {
+                 idx = parseInt(ansIdRaw) - 1;
+             } else {
+                 idx = ansIdRaw.charCodeAt(0) - 97; // a=0
+             }
+             
              if (idx >= 0 && idx < currentOptions.length) {
                  ansText = currentOptions[idx];
              }
           }
           
-          if (ansText || ansId) {
-             currentQuestion.answer = ansText;
+          if (ansText || ansIdRaw) {
+             currentQuestion.answer = ansText || ansIdRaw;
              pushQuestion();
           }
           continue;
