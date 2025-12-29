@@ -18,7 +18,7 @@ export function Navbar({ currentMode, hasActiveSession, onNavigate, onNewSession
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <div 
           className="flex items-center gap-2 cursor-pointer group"
-          onClick={() => hasActiveSession ? onNavigate('SELECTION') : onNavigate('UPLOAD')}
+          onClick={onNewSession}
         >
           <div className="p-2 rounded-lg bg-blue-600 text-white group-hover:bg-blue-700 transition-colors">
             <BrainCircuit className="w-5 h-5" />

@@ -146,23 +146,64 @@ function consolidateTopics(questions: Question[]): Question[] {
 
     console.log(`Consolidating ${uniqueTopics.length} topics...`);
 
-    // Strategy 1: Group by Major Number (e.g., "1.2 Intro" -> "Unit 1")
-    // Regex matches starts with digit(s) followed by dot/space
+    const groups: { name: string; keywords: string[] }[] = [
+        { name: "HTTP Protocols & History", keywords: ["history", "internet protocol", "http", "stateless", "https", "protocol", "status code", "methods"] },
+        { name: "Web Servers & Architecture", keywords: ["architecture", "web server", "iis", "apache"] },
+        { name: "HTML5 Basics (Tags & Validation)", keywords: ["basic html", "tags", "html5", "validation", "forms"] },
+        { name: "HTML5 Advanced (Multimedia & APIs)", keywords: ["audio", "video", "geo-location", "new features", "api"] },
+        { name: "CSS Styling (Basics & Box Model)", keywords: ["css", "styling", "font", "box model", "attribute", "style tags"] },
+        { name: "CSS Advanced (Layout & Linking)", keywords: ["structure", "layout", "inline", "internal", "external", "linking"] },
+        { name: "JS Fundamentals (Variables & Ops)", keywords: ["javascript", "variable", "statement", "operator", "comment", "expression", "control structure", "scope"] },
+        { name: "JS Data Types (Strings, Numbers, Dates)", keywords: ["string", "number", "boolean", "date"] },
+        { name: "JS Collections (Arrays & Objects)", keywords: ["array", "object"] },
+        { name: "JS Functions & OOP", keywords: ["function", "oop", "object oriented"] },
+        { name: "Document Object Model (DOM)", keywords: ["dom", "document object model", "hierarchy", "element", "event", "manipulation", "traversal"] },
+        { name: "Form Interaction & Regex", keywords: ["form", "input", "regular expression", "regex"] },
+        { name: "Error Handling & Debugging", keywords: ["error", "debugging", "jslint", "quality", "browser dev tool"] },
+        { name: "jQuery Basics & Selection", keywords: ["jquery", "selector", "event"] },
+        { name: "jQuery Manipulation & Animation", keywords: ["animation", "effect", "traverse", "manipulation", "utility"] },
+        { name: "jQuery Plugins & Templates", keywords: ["plugin", "template", "data attribute"] },
+        { name: "JSON Data Handling", keywords: ["json"] },
+        { name: "Ajax & Web Services", keywords: ["ajax", "web service", "framework"] },
+        { name: "Asynchronous JS (Promises & Event Loop)", keywords: ["promise", "async", "await", "event loop", "timer"] },
+        { name: "Node.js Fundamentals", keywords: ["node.js", "node js", "fs", "file i/o", "request"] },
+        { name: "Node.js Web Server & Apps", keywords: ["http module", "developing", "node web"] },
+        { name: "Express.js Framework", keywords: ["express", "route", "middleware", "view", "rendering"] },
+        { name: "React Core (Components & Props)", keywords: ["react", "element", "component", "props", "compose", "render"] },
+        { name: "React State & Lifecycle", keywords: ["state", "lifecycle", "context", "handle event", "conditional rendering", "list", "key", "ref"] },
+        { name: "Advanced React & Redux", keywords: ["lift state", "error boundary", "composition", "inheritance", "containment", "specialization", "redux", "thinking in react"] }
+    ];
+
     const topicMap: Record<string, string> = {};
     
     uniqueTopics.forEach(topic => {
-        // Match "1.", "Unit 1", "Chapter 1"
-        const match = topic.match(/^((?:Unit|Chapter|Module)?\s*\d+)/i);
-        if (match) {
-            topicMap[topic] = match[1] + " - Key Concepts"; // e.g., "Unit 1 - Key Concepts"
+        const lowerTopic = topic.toLowerCase();
+        
+        // Try to find a matching group
+        let matchedGroupName = "";
+        for (const group of groups) {
+            if (group.keywords.some(kw => lowerTopic.includes(kw.toLowerCase()))) {
+                matchedGroupName = group.name;
+                break;
+            }
+        }
+
+        if (matchedGroupName) {
+            topicMap[topic] = matchedGroupName;
         } else {
-             // Strategy 2: Group by First Significant Word(s) if plenty
-             const words = topic.split(/\s+/);
-             if (words.length > 2) {
-                 topicMap[topic] = words.slice(0, 2).join(" ") + "...";
-             } else {
-                 topicMap[topic] = "General Concepts";
-             }
+            // Strategy 1: Group by Major Number (e.g., "1.2 Intro" -> "Unit 1")
+            const match = topic.match(/^((?:Unit|Chapter|Module)?\s*\d+)/i);
+            if (match) {
+                topicMap[topic] = match[1] + " - General Concepts";
+            } else {
+                // Strategy 2: Group by First Significant Word(s) if plenty
+                const words = topic.split(/\s+/).filter(w => w.length > 2);
+                if (words.length > 2) {
+                    topicMap[topic] = words.slice(0, 2).join(" ") + " (Misc)";
+                } else {
+                    topicMap[topic] = "Other Subjects";
+                }
+            }
         }
     });
 
